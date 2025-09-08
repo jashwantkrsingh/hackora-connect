@@ -141,7 +141,7 @@ const Landing = () => {
           </div>
           
           <div className="mt-8 pt-8 border-t border-gray-800 text-center text-gray-400">
-            <p>&copy; 2024 Hackora. Built for the community, by the community.</p>
+            <p>&copy; 2025 Hackora. Built for the community, by the community.</p>
           </div>
         </div>
       </footer>
