@@ -1,6 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Home, User, Lightbulb, Users, MessageCircle, Briefcase } from "lucide-react";
+import { Home, User, Lightbulb, Users, MessageCircle, Briefcase, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "./ui/button";
 
 const navItems = [
   { path: "/dashboard", icon: Home, label: "Dashboard" },
@@ -12,6 +14,7 @@ const navItems = [
 
 export const Navigation = () => {
   const location = useLocation();
+  const { signOut } = useAuth();
 
   return (
     <nav className="bg-black border-b border-gray-800 sticky top-0 z-50">
@@ -26,7 +29,7 @@ export const Navigation = () => {
             </motion.div>
           </Link>
 
-          <div className="flex space-x-8">
+          <div className="flex items-center space-x-8">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
@@ -46,6 +49,16 @@ export const Navigation = () => {
                 </Link>
               );
             })}
+            
+            <Button
+              onClick={signOut}
+              variant="ghost"
+              size="sm"
+              className="text-gray-400 hover:text-white hover:bg-gray-900"
+            >
+              <LogOut size={18} className="mr-2" />
+              <span className="font-medium">Sign Out</span>
+            </Button>
           </div>
         </div>
       </div>

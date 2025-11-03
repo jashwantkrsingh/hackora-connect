@@ -7,8 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Profile = () => {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
   const [profile, setProfile] = useState({
     name: "",
     college: "",
@@ -53,6 +60,88 @@ const Profile = () => {
   useEffect(() => {
     calculateProfileRating();
   }, [profile]);
+
+  useEffect(() => {
+    if (user) {
+      loadProfile();
+    }
+  }, [user]);
+
+  const loadProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user?.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+
+      if (data) {
+        const socialLinks = [];
+        if (data.github_url) socialLinks.push({ platform: "GitHub", url: data.github_url });
+        if (data.linkedin_url) socialLinks.push({ platform: "LinkedIn", url: data.linkedin_url });
+        if (data.kaggle_url) socialLinks.push({ platform: "Kaggle", url: data.kaggle_url });
+        if (data.portfolio_url) socialLinks.push({ platform: "Portfolio", url: data.portfolio_url });
+        if (data.twitter_url) socialLinks.push({ platform: "Twitter", url: data.twitter_url });
+
+        setProfile({
+          name: data.full_name || "",
+          college: data.college || "",
+          location: "",
+          skills: Array.isArray(data.skills) ? data.skills : [],
+          interests: Array.isArray(data.interests) ? data.interests : [],
+          bio: data.bio || "",
+          socialLinks: socialLinks,
+          projects: Array.isArray(data.projects) ? data.projects : []
+        });
+      }
+    } catch (error: any) {
+      toast.error('Error loading profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+
+    try {
+      const socialLinksMap = {
+        GitHub: profile.socialLinks.find(l => l.platform === "GitHub")?.url || null,
+        LinkedIn: profile.socialLinks.find(l => l.platform === "LinkedIn")?.url || null,
+        Kaggle: profile.socialLinks.find(l => l.platform === "Kaggle")?.url || null,
+        Portfolio: profile.socialLinks.find(l => l.platform === "Portfolio")?.url || null,
+        Twitter: profile.socialLinks.find(l => l.platform === "Twitter")?.url || null,
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user?.id,
+          full_name: profile.name,
+          college: profile.college,
+          bio: profile.bio,
+          skills: profile.skills,
+          interests: profile.interests,
+          github_url: socialLinksMap.GitHub,
+          linkedin_url: socialLinksMap.LinkedIn,
+          kaggle_url: socialLinksMap.Kaggle,
+          portfolio_url: socialLinksMap.Portfolio,
+          twitter_url: socialLinksMap.Twitter,
+          projects: profile.projects,
+          email: user?.email,
+        });
+
+      if (error) throw error;
+
+      toast.success('Profile saved successfully!');
+    } catch (error: any) {
+      toast.error('Error saving profile');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const calculateProfileRating = () => {
     let score = 0;
@@ -152,6 +241,17 @@ const Profile = () => {
       projects: prev.projects.filter(project => project.id !== id)
     }));
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black">
+        <Navigation />
+        <div className="flex items-center justify-center h-[80vh]">
+          <div className="text-white text-xl">Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black">
@@ -501,11 +601,13 @@ const Profile = () => {
 
           {/* Save Button */}
           <Button
+            onClick={handleSave}
+            disabled={saving || loading}
             className="btn-primary mt-8 w-full md:w-auto"
             size="lg"
           >
             <Save className="w-5 h-5 mr-2" />
-            Save Changes
+            {saving ? "Saving..." : "Save Changes"}
           </Button>
         </motion.div>
       </div>
