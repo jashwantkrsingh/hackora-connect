@@ -168,6 +168,46 @@ const Profile = () => {
     setProfileRating(Math.min(score, maxScore));
   };
 
+  const getScoreDetails = () => {
+    const details = [];
+    
+    // Basic info checks
+    if (!profile.name.trim()) details.push("Add your name (+10)");
+    if (!profile.college.trim()) details.push("Add your college (+10)");
+    if (!profile.bio.trim() || profile.bio.length < 50) details.push("Write a bio (50+ chars, +10)");
+    
+    // Skills checks
+    if (profile.skills.length < 3) details.push(`Add ${3 - profile.skills.length} more skills (+10)`);
+    else if (profile.skills.length < 5) details.push(`Add ${5 - profile.skills.length} more skills (+5)`);
+    
+    // Interests checks
+    if (profile.interests.length < 2) details.push(`Add ${2 - profile.interests.length} more interests (+10)`);
+    
+    // Social links checks
+    if (profile.socialLinks.length < 1) details.push("Add at least 1 social link (+10)");
+    else if (profile.socialLinks.length < 3) details.push(`Add ${3 - profile.socialLinks.length} more social links (+10)`);
+    
+    // Projects checks
+    if (profile.projects.length < 1) details.push("Add your first project (+15)");
+    else if (profile.projects.length < 3) details.push(`Add ${3 - profile.projects.length} more projects (+10)`);
+    
+    return details;
+  };
+
+  const getScoreColor = () => {
+    if (profileRating < 30) return "from-red-500 to-orange-500";
+    if (profileRating < 60) return "from-orange-500 to-yellow-500";
+    if (profileRating < 80) return "from-yellow-500 to-green-500";
+    return "from-green-500 to-emerald-500";
+  };
+
+  const getScoreLabel = () => {
+    if (profileRating < 30) return "Getting Started 🌱";
+    if (profileRating < 60) return "Building Up 📈";
+    if (profileRating < 80) return "Almost There 🎯";
+    return "Excellent! 🌟";
+  };
+
   const addSkill = (e) => {
     if (e.key === 'Enter' && newSkill.trim()) {
       setProfile(prev => ({
@@ -264,41 +304,54 @@ const Profile = () => {
           transition={{ duration: 0.6 }}
           className="card-primary"
         >
-          {/* Profile Header with Rating */}
-          <div className="flex items-center justify-between mb-8">
+          {/* Profile Header with Enhanced Rating */}
+          <div className="flex flex-col md:flex-row md:items-start justify-between mb-8 gap-6">
             <div className="flex items-center space-x-6">
               <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
                 <User className="w-12 h-12 text-white" />
               </div>
               <div>
                 <h1 className="text-3xl font-bold mb-2">Profile Settings</h1>
-                <p className="text-gray-400">Manage your Hackora profile and preferences</p>
+                <p className="text-gray-400">Build your perfect Hackora profile</p>
               </div>
             </div>
             
-            {/* Profile Rating */}
-            <Card className="bg-gray-800 border-gray-700 min-w-[200px]">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
+            {/* Enhanced Profile Rating */}
+            <Card className="bg-gray-800 border-gray-700 md:min-w-[300px]">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium">Profile Score</span>
-                  <div className="flex items-center space-x-1">
-                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                    <span className="text-lg font-bold">{profileRating}%</span>
+                  <div className="flex items-center space-x-2">
+                    <Star className="w-5 h-5 text-yellow-400 fill-current" />
+                    <span className="text-2xl font-bold">{profileRating}%</span>
                   </div>
                 </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
+                <div className="w-full bg-gray-700 rounded-full h-3 mb-3">
                   <motion.div 
-                    className="bg-gradient-to-r from-yellow-400 to-green-400 h-2 rounded-full"
+                    className={`bg-gradient-to-r ${getScoreColor()} h-3 rounded-full`}
                     initial={{ width: 0 }}
                     animate={{ width: `${profileRating}%` }}
                     transition={{ duration: 0.8, ease: "easeOut" }}
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {profileRating < 30 ? "Getting started" : 
-                   profileRating < 60 ? "Good progress" : 
-                   profileRating < 80 ? "Almost there" : "Excellent!"}
+                <p className="text-sm font-medium text-center mb-3">
+                  {getScoreLabel()}
                 </p>
+                
+                {/* Score Improvement Tips */}
+                {profileRating < 100 && (
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                    <p className="text-xs font-medium text-gray-300 mb-2">Quick wins:</p>
+                    <div className="space-y-1">
+                      {getScoreDetails().slice(0, 3).map((detail, index) => (
+                        <div key={index} className="text-xs text-gray-400 flex items-start">
+                          <span className="text-green-400 mr-1">•</span>
+                          <span>{detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -573,9 +626,12 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Badges Section */}
+          {/* Achievement Badges */}
           <div className="mt-12">
-            <h2 className="text-2xl font-bold mb-6">Achievement Badges</h2>
+            <h2 className="text-2xl font-bold mb-6 flex items-center">
+              <Award className="w-6 h-6 mr-2 text-yellow-400" />
+              Achievement Badges
+            </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {badges.map((badge, index) => (
                 <motion.div
@@ -584,31 +640,48 @@ const Profile = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
                   className={`bg-gray-800 border rounded-xl p-4 text-center transition-all ${
-                    badge.earned ? 'border-gray-600 opacity-100' : 'border-gray-700 opacity-50'
+                    badge.earned ? 'border-green-500/50 shadow-lg shadow-green-500/20' : 'border-gray-700 opacity-50'
                   }`}
                 >
-                  <div className={`w-8 h-8 ${badge.color} rounded-full mx-auto mb-2 ${
+                  <div className={`w-12 h-12 ${badge.color} rounded-full mx-auto mb-3 flex items-center justify-center ${
                     badge.earned ? '' : 'grayscale'
-                  }`}></div>
+                  }`}>
+                    {badge.earned ? (
+                      <Star className="w-6 h-6 text-white fill-current" />
+                    ) : (
+                      <div className="w-6 h-6 border-2 border-white/30 rounded-full" />
+                    )}
+                  </div>
                   <div className="text-sm font-medium">{badge.name}</div>
-                  {badge.earned && (
-                    <div className="text-xs text-green-400 mt-1">✓ Earned</div>
+                  {badge.earned ? (
+                    <div className="text-xs text-green-400 mt-1 font-medium">✓ Earned</div>
+                  ) : (
+                    <div className="text-xs text-gray-500 mt-1">Locked</div>
                   )}
                 </motion.div>
               ))}
             </div>
           </div>
 
-          {/* Save Button */}
-          <Button
-            onClick={handleSave}
-            disabled={saving || loading}
-            className="btn-primary mt-8 w-full md:w-auto"
-            size="lg"
-          >
-            <Save className="w-5 h-5 mr-2" />
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
+          {/* Save Button with Status */}
+          <div className="mt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-gray-400">
+              {profileRating === 100 ? (
+                <span className="text-green-400 font-medium">🎉 Your profile is complete!</span>
+              ) : (
+                <span>Complete your profile to unlock all features</span>
+              )}
+            </div>
+            <Button
+              onClick={handleSave}
+              disabled={saving || loading}
+              className="btn-primary w-full md:w-auto"
+              size="lg"
+            >
+              <Save className="w-5 h-5 mr-2" />
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </motion.div>
       </div>
     </div>
