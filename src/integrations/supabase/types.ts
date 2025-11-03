@@ -14,7 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          bio: string | null
+          college: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          github_url: string | null
+          id: string
+          interests: string[] | null
+          kaggle_url: string | null
+          linkedin_url: string | null
+          portfolio_url: string | null
+          projects: Json | null
+          skills: string[] | null
+          twitter_url: string | null
+          updated_at: string | null
+          year_of_study: string | null
+        }
+        Insert: {
+          bio?: string | null
+          college?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          github_url?: string | null
+          id: string
+          interests?: string[] | null
+          kaggle_url?: string | null
+          linkedin_url?: string | null
+          portfolio_url?: string | null
+          projects?: Json | null
+          skills?: string[] | null
+          twitter_url?: string | null
+          updated_at?: string | null
+          year_of_study?: string | null
+        }
+        Update: {
+          bio?: string | null
+          college?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          github_url?: string | null
+          id?: string
+          interests?: string[] | null
+          kaggle_url?: string | null
+          linkedin_url?: string | null
+          portfolio_url?: string | null
+          projects?: Json | null
+          skills?: string[] | null
+          twitter_url?: string | null
+          updated_at?: string | null
+          year_of_study?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
