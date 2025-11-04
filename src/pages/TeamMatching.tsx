@@ -1,131 +1,62 @@
 import { motion } from "framer-motion";
 import { Navigation } from "@/components/Navigation";
-import { User, MapPin, Code, Star, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { MapPin, Star, MessageCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  college: string | null;
+  skills: string[] | null;
+  bio: string | null;
+  year_of_study: string | null;
+  projects: any;
+}
 
 const TeamMatching = () => {
+  const { user } = useAuth();
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedCollege, setSelectedCollege] = useState("Any College");
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const skills = ["React", "Python", "AI/ML", "Design", "Mobile", "Backend", "DevOps", "Blockchain"];
   const colleges = ["Any College", "Stanford University", "MIT", "University of Washington", "Columbia University", "UT Austin", "University of Chicago", "Oregon State University"];
 
-  const teammates = [
-    {
-      id: 1,
-      name: "Sarah Kim",
-      role: "Full-Stack Developer",
-      location: "San Francisco, CA",
-      college: "Stanford University",
-      skills: ["React", "Python", "PostgreSQL"],
-      rating: 4.9,
-      projects: 12,
-      bio: "Passionate about building scalable web applications and exploring new technologies.",
-      avatar: "SK",
-      isAISuggested: true
-    },
-    {
-      id: 2,
-      name: "Mike Johnson",
-      role: "ML Engineer",
-      location: "Boston, MA",
-      college: "MIT",
-      skills: ["Python", "TensorFlow", "AI/ML"],
-      rating: 4.8,
-      projects: 8,
-      bio: "Specializing in computer vision and natural language processing applications.",
-      avatar: "MJ",
-      isAISuggested: true
-    },
-    {
-      id: 3,
-      name: "Emily Davis",
-      role: "UX/UI Designer",
-      location: "Seattle, WA",
-      college: "University of Washington",
-      skills: ["Design", "Figma", "User Research"],
-      rating: 4.9,
-      projects: 15,
-      bio: "Creating intuitive and beautiful user experiences for web and mobile apps.",
-      avatar: "ED",
-      isAISuggested: false
-    },
-    {
-      id: 4,
-      name: "Alex Chen",
-      role: "Mobile Developer",
-      location: "New York, NY",
-      college: "Columbia University",
-      skills: ["React Native", "Swift", "Mobile"],
-      rating: 4.7,
-      projects: 10,
-      bio: "Building cross-platform mobile apps with focus on performance and user experience.",
-      avatar: "AC",
-      isAISuggested: true
-    },
-    {
-      id: 5,
-      name: "David Wong",
-      role: "DevOps Engineer",
-      location: "Austin, TX",
-      college: "UT Austin",
-      skills: ["Docker", "AWS", "DevOps"],
-      rating: 4.8,
-      projects: 9,
-      bio: "Automating deployments and managing cloud infrastructure for scalable applications.",
-      avatar: "DW",
-      isAISuggested: false
-    },
-    {
-      id: 6,
-      name: "Jessica Liu",
-      role: "Backend Developer",
-      location: "Chicago, IL",
-      college: "University of Chicago",
-      skills: ["Node.js", "Backend", "Database"],
-      rating: 4.9,
-      projects: 14,
-      bio: "Expert in building robust APIs and managing complex database architectures.",
-      avatar: "JL",
-      isAISuggested: false
-    },
-    {
-      id: 7,
-      name: "Ryan Patel",
-      role: "Data Scientist",
-      location: "Palo Alto, CA",
-      college: "Stanford University",
-      skills: ["Python", "R", "Machine Learning"],
-      rating: 4.8,
-      projects: 11,
-      bio: "Analyzing complex datasets to drive business insights and predictions.",
-      avatar: "RP",
-      isAISuggested: false
-    },
-    {
-      id: 8,
-      name: "Sophie Brown",
-      role: "Frontend Developer",
-      location: "Portland, OR",
-      college: "Oregon State University",
-      skills: ["Vue.js", "CSS", "Animation"],
-      rating: 4.7,
-      projects: 13,
-      bio: "Creating engaging user interfaces with smooth animations and interactions.",
-      avatar: "SB",
-      isAISuggested: true
+  useEffect(() => {
+    fetchProfiles();
+  }, [user]);
+
+  const fetchProfiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', user?.id || ''); // Exclude current user
+
+      if (error) throw error;
+      setProfiles(data || []);
+    } catch (error) {
+      console.error('Error fetching profiles:', error);
+      toast.error('Failed to load profiles');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
-  const filteredTeammates = teammates.filter(teammate => {
+  const filteredProfiles = profiles.filter(profile => {
+    const profileSkills = profile.skills || [];
     const matchesSkills = selectedSkills.length === 0 || 
-      selectedSkills.some(skill => teammate.skills.some(s => s.toLowerCase().includes(skill.toLowerCase())));
-    const matchesCollege = selectedCollege === "Any College" || teammate.college === selectedCollege;
-    return matchesSkills && matchesCollege;
+      selectedSkills.some(skill => 
+        profileSkills.some(s => s.toLowerCase().includes(skill.toLowerCase()))
+      );
+    const matchesCollege = selectedCollege === "Any College" || profile.college === selectedCollege;
+    return matchesSkills && matchesCollege && profile.full_name;
   });
-
-  const aiSuggestedTeammates = filteredTeammates.filter(teammate => teammate.isAISuggested);
-  const otherTeammates = filteredTeammates.filter(teammate => !teammate.isAISuggested);
 
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev => 
@@ -135,7 +66,12 @@ const TeamMatching = () => {
     );
   };
 
-  const TeammateCard = ({ teammate, index }: { teammate: typeof teammates[0], index: number }) => (
+  const getInitials = (name: string | null) => {
+    if (!name) return "??";
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const TeammateCard = ({ profile, index }: { profile: Profile, index: number }) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -145,30 +81,32 @@ const TeamMatching = () => {
     >
       <div className="flex items-start space-x-4 mb-4">
         <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center font-bold text-white">
-          {teammate.avatar}
+          {getInitials(profile.full_name)}
         </div>
         <div className="flex-1">
-          <h3 className="text-xl font-bold">{teammate.name}</h3>
-          <p className="text-gray-400">{teammate.role}</p>
-          <div className="flex items-center space-x-1 text-sm text-gray-400 mt-1">
-            <MapPin className="w-4 h-4" />
-            <span>{teammate.location}</span>
-          </div>
-          <div className="text-sm text-gray-500 mt-1">{teammate.college}</div>
+          <h3 className="text-xl font-bold">{profile.full_name || 'Anonymous'}</h3>
+          <p className="text-gray-400">{profile.year_of_study || 'Student'}</p>
+          {profile.college && (
+            <div className="text-sm text-gray-500 mt-1">{profile.college}</div>
+          )}
         </div>
         <div className="text-right">
           <div className="flex items-center space-x-1 text-yellow-400 mb-1">
             <Star className="w-4 h-4 fill-current" />
-            <span className="text-white">{teammate.rating}</span>
+            <span className="text-white">New</span>
           </div>
-          <div className="text-sm text-gray-400">{teammate.projects} projects</div>
+          <div className="text-sm text-gray-400">
+            {Array.isArray(profile.projects) ? profile.projects.length : 0} projects
+          </div>
         </div>
       </div>
 
-      <p className="text-gray-400 mb-4 text-sm">{teammate.bio}</p>
+      {profile.bio && (
+        <p className="text-gray-400 mb-4 text-sm">{profile.bio}</p>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-4">
-        {teammate.skills.map((skill, skillIndex) => (
+        {(profile.skills || []).map((skill, skillIndex) => (
           <span
             key={skillIndex}
             className="bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm"
@@ -262,37 +200,29 @@ const TeamMatching = () => {
             </motion.div>
 
             {/* AI Suggested Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="mb-12"
-            >
-              <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/30 rounded-2xl p-6 mb-6">
-                <h2 className="text-2xl font-bold mb-2">🤖 AI Suggested Teammates</h2>
-                <p className="text-gray-400">Based on your skills and project interests</p>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+                <p className="text-gray-400 mt-4">Loading profiles...</p>
               </div>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                {aiSuggestedTeammates.map((teammate, index) => (
-                  <TeammateCard key={teammate.id} teammate={teammate} index={index} />
-                ))}
+            ) : filteredProfiles.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-400 text-lg">No profiles found. Be the first to create your profile!</p>
               </div>
-            </motion.div>
-
-            {/* All Teammates Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
-            >
-              <h2 className="text-2xl font-bold mb-6">All Available Teammates</h2>
-              <div className="grid md:grid-cols-2 gap-6">
-                {otherTeammates.map((teammate, index) => (
-                  <TeammateCard key={teammate.id} teammate={teammate} index={index + aiSuggestedTeammates.length} />
-                ))}
-              </div>
-            </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+              >
+                <h2 className="text-2xl font-bold mb-6">Available Teammates</h2>
+                <div className="grid md:grid-cols-2 gap-6">
+                  {filteredProfiles.map((profile, index) => (
+                    <TeammateCard key={profile.id} profile={profile} index={index} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
       </div>

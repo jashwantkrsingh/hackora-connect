@@ -1,81 +1,158 @@
 import { motion } from "framer-motion";
 import { Navigation } from "@/components/Navigation";
-import { Send, Hash, Users, TrendingUp, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { Send, Hash, Users, TrendingUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { format } from "date-fns";
+
+interface Channel {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
+interface Message {
+  id: string;
+  content: string;
+  created_at: string;
+  user_id: string;
+  profiles?: {
+    full_name: string | null;
+  };
+}
 
 const CommunityHub = () => {
-  const [selectedChannel, setSelectedChannel] = useState("general");
+  const { user } = useAuth();
+  const [selectedChannelId, setSelectedChannelId] = useState<string>("");
   const [message, setMessage] = useState("");
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const channels = [
-    { id: "general", name: "general", members: 1247, unread: 0 },
-    { id: "announcements", name: "announcements", members: 1247, unread: 2 },
-    { id: "web-dev", name: "web-dev", members: 423, unread: 0 },
-    { id: "ai-ml", name: "ai-ml", members: 312, unread: 5 },
-    { id: "mobile-dev", name: "mobile-dev", members: 287, unread: 0 },
-    { id: "blockchain", name: "blockchain", members: 156, unread: 1 },
-    { id: "design", name: "design", members: 298, unread: 0 },
-    { id: "career-advice", name: "career-advice", members: 567, unread: 3 },
-    { id: "random", name: "random", members: 892, unread: 0 }
-  ];
+  useEffect(() => {
+    fetchChannels();
+  }, []);
 
-  const messages = [
-    {
-      id: 1,
-      user: "Sarah Kim",
-      avatar: "SK",
-      message: "Just launched my new React project! Would love to get some feedback from the community 🚀",
-      timestamp: "2:34 PM",
-      isOwn: false
-    },
-    {
-      id: 2,
-      user: "Mike Johnson",
-      avatar: "MJ",
-      message: "That's awesome! I'd be happy to take a look. Do you have the GitHub repo link?",
-      timestamp: "2:35 PM",
-      isOwn: false
-    },
-    {
-      id: 3,
-      user: "You",
-      avatar: "YO",
-      message: "Hey everyone! I'm looking for a team member who's good with Python and ML. Working on an exciting AI project for sustainability 🌱",
-      timestamp: "2:36 PM",
-      isOwn: true
-    },
-    {
-      id: 4,
-      user: "Emily Davis",
-      avatar: "ED",
-      message: "I might be interested! I have experience with scikit-learn and TensorFlow. Can you share more details?",
-      timestamp: "2:37 PM",
-      isOwn: false
-    },
-    {
-      id: 5,
-      user: "Alex Chen",
-      avatar: "AC",
-      message: "Count me in too! I've been working on environmental data analysis projects. This sounds right up my alley!",
-      timestamp: "2:38 PM",
-      isOwn: false
-    },
-    {
-      id: 6,
-      user: "You",
-      avatar: "YO",
-      message: "Perfect! I'll DM you both with the project details. This community is amazing! 💪",
-      timestamp: "2:39 PM",
-      isOwn: true
+  useEffect(() => {
+    if (selectedChannelId) {
+      fetchMessages();
+      subscribeToMessages();
     }
-  ];
+  }, [selectedChannelId]);
 
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      // Handle sending message
-      setMessage("");
+  const fetchChannels = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('channels')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setChannels(data || []);
+      if (data && data.length > 0) {
+        setSelectedChannelId(data[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching channels:', error);
+      toast.error('Failed to load channels');
+    } finally {
+      setLoading(false);
     }
   };
+
+  const fetchMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('channel_id', selectedChannelId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Fetch all unique user profiles
+      const userIds = [...new Set(data?.map(m => m.user_id) || [])];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+
+      const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+
+      const messagesWithProfiles = (data || []).map(msg => ({
+        ...msg,
+        profiles: profilesMap.get(msg.user_id) || { full_name: null }
+      }));
+
+      setMessages(messagesWithProfiles);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
+  const subscribeToMessages = () => {
+    const channel = supabase
+      .channel('messages-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `channel_id=eq.${selectedChannelId}`
+        },
+        async (payload) => {
+          // Fetch the profile data for the new message
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', payload.new.user_id)
+            .single();
+
+          setMessages(prev => [...prev, {
+            ...payload.new as Message,
+            profiles: profile
+          }]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
+
+  const handleSendMessage = async () => {
+    if (!message.trim() || !user) {
+      toast.error('Please sign in to send messages');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          channel_id: selectedChannelId,
+          user_id: user.id,
+          content: message.trim()
+        });
+
+      if (error) throw error;
+      setMessage("");
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    }
+  };
+
+  const getInitials = (name: string | null) => {
+    if (!name) return "??";
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const selectedChannel = channels.find(c => c.id === selectedChannelId);
 
   return (
     <div className="min-h-screen bg-black">
@@ -104,9 +181,9 @@ const CommunityHub = () => {
                 {channels.map((channel) => (
                   <button
                     key={channel.id}
-                    onClick={() => setSelectedChannel(channel.id)}
+                    onClick={() => setSelectedChannelId(channel.id)}
                     className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${
-                      selectedChannel === channel.id
+                      selectedChannelId === channel.id
                         ? "bg-gray-700 text-white"
                         : "text-gray-400 hover:bg-gray-800 hover:text-white"
                     }`}
@@ -115,11 +192,6 @@ const CommunityHub = () => {
                       <Hash className="w-4 h-4" />
                       <span>{channel.name}</span>
                     </div>
-                    {channel.unread > 0 && (
-                      <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                        {channel.unread}
-                      </span>
-                    )}
                   </button>
                 ))}
               </div>
@@ -155,43 +227,59 @@ const CommunityHub = () => {
             <div className="p-6 border-b border-gray-800">
               <div className="flex items-center space-x-2">
                 <Hash className="w-6 h-6 text-gray-400" />
-                <h1 className="text-2xl font-bold">{selectedChannel}</h1>
-                <span className="text-gray-400">
-                  • {channels.find(c => c.id === selectedChannel)?.members} members
-                </span>
+                <h1 className="text-2xl font-bold">{selectedChannel?.name || 'Select a channel'}</h1>
+                {selectedChannel?.description && (
+                  <span className="text-gray-400">• {selectedChannel.description}</span>
+                )}
               </div>
             </div>
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {messages.map((msg, index) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className={`flex ${msg.isOwn ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`flex items-start space-x-3 max-w-2xl ${msg.isOwn ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center font-bold text-white text-sm">
-                      {msg.avatar}
-                    </div>
-                    <div className={`p-4 rounded-2xl ${
-                      msg.isOwn 
-                        ? 'bg-white text-black rounded-br-md' 
-                        : 'bg-gray-700 text-white rounded-bl-md'
-                    }`}>
-                      {!msg.isOwn && (
-                        <div className="font-semibold text-sm mb-1">{msg.user}</div>
-                      )}
-                      <div className="leading-relaxed">{msg.message}</div>
-                      <div className={`text-xs mt-2 ${msg.isOwn ? 'text-gray-600' : 'text-gray-400'}`}>
-                        {msg.timestamp}
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+                  <p className="text-gray-400 mt-4">Loading messages...</p>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-400">No messages yet. Be the first to say hello!</p>
+                </div>
+              ) : (
+                messages.map((msg, index) => {
+                  const isOwn = msg.user_id === user?.id;
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
+                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`flex items-start space-x-3 max-w-2xl ${isOwn ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0">
+                          {getInitials(msg.profiles?.full_name || null)}
+                        </div>
+                        <div className={`p-4 rounded-2xl ${
+                          isOwn 
+                            ? 'bg-white text-black rounded-br-md' 
+                            : 'bg-gray-700 text-white rounded-bl-md'
+                        }`}>
+                          {!isOwn && (
+                            <div className="font-semibold text-sm mb-1">
+                              {msg.profiles?.full_name || 'Anonymous'}
+                            </div>
+                          )}
+                          <div className="leading-relaxed">{msg.content}</div>
+                          <div className={`text-xs mt-2 ${isOwn ? 'text-gray-600' : 'text-gray-400'}`}>
+                            {format(new Date(msg.created_at), 'p')}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
 
             {/* Message Input */}
@@ -203,7 +291,7 @@ const CommunityHub = () => {
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                   className="input-hackora flex-1"
-                  placeholder={`Message #${selectedChannel}`}
+                  placeholder={`Message #${selectedChannel?.name || 'channel'}`}
                 />
                 <motion.button
                   whileHover={{ scale: 1.05 }}
