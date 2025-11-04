@@ -11,6 +11,8 @@ interface Profile {
   full_name: string | null;
   email: string | null;
   college: string | null;
+  gender: string | null;
+  looking_for: string | null;
   skills: string[] | null;
   bio: string | null;
   year_of_study: string | null;
@@ -21,15 +23,36 @@ const TeamMatching = () => {
   const { user } = useAuth();
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedCollege, setSelectedCollege] = useState("Any College");
+  const [selectedGender, setSelectedGender] = useState("Any Gender");
+  const [selectedLookingFor, setSelectedLookingFor] = useState("Any");
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
+  const [colleges, setColleges] = useState<string[]>(["Any College"]);
   const [loading, setLoading] = useState(true);
 
   const skills = ["React", "Python", "AI/ML", "Design", "Mobile", "Backend", "DevOps", "Blockchain"];
-  const colleges = ["Any College", "Stanford University", "MIT", "University of Washington", "Columbia University", "UT Austin", "University of Chicago", "Oregon State University"];
 
   useEffect(() => {
-    fetchProfiles();
+    if (user) {
+      fetchCurrentUserProfile();
+      fetchProfiles();
+    }
   }, [user]);
+
+  const fetchCurrentUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user?.id || '')
+        .single();
+
+      if (error) throw error;
+      setCurrentUserProfile(data);
+    } catch (error) {
+      console.error('Error fetching current user profile:', error);
+    }
+  };
 
   const fetchProfiles = async () => {
     try {
@@ -39,6 +62,15 @@ const TeamMatching = () => {
         .neq('id', user?.id || ''); // Exclude current user
 
       if (error) throw error;
+      
+      // Extract unique colleges
+      const uniqueColleges = [...new Set(
+        data
+          ?.map(p => p.college)
+          .filter(c => c && c.trim() !== '') as string[]
+      )].sort();
+      
+      setColleges(["Any College", ...uniqueColleges]);
       setProfiles(data || []);
     } catch (error) {
       console.error('Error fetching profiles:', error);
@@ -55,7 +87,10 @@ const TeamMatching = () => {
         profileSkills.some(s => s.toLowerCase().includes(skill.toLowerCase()))
       );
     const matchesCollege = selectedCollege === "Any College" || profile.college === selectedCollege;
-    return matchesSkills && matchesCollege && profile.full_name;
+    const matchesGender = selectedGender === "Any Gender" || profile.gender === selectedGender.toLowerCase();
+    const matchesLookingFor = selectedLookingFor === "Any" || profile.looking_for === selectedLookingFor;
+    
+    return matchesSkills && matchesCollege && matchesGender && matchesLookingFor && profile.full_name;
   });
 
   const toggleSkill = (skill: string) => {
@@ -70,6 +105,23 @@ const TeamMatching = () => {
     if (!name) return "??";
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
+
+  const getLookingForLabel = (lookingFor: string | null) => {
+    if (!lookingFor) return "";
+    switch (lookingFor) {
+      case "team_members": return "🔍 Looking for Team Members";
+      case "teams": return "👥 Looking to Join Teams";
+      case "both": return "🤝 Open to Both";
+      default: return "";
+    }
+  };
+
+  const isProfileComplete = currentUserProfile && 
+    currentUserProfile.full_name && 
+    currentUserProfile.college && 
+    currentUserProfile.year_of_study &&
+    currentUserProfile.gender &&
+    currentUserProfile.looking_for;
 
   const TeammateCard = ({ profile, index }: { profile: Profile, index: number }) => (
     <motion.div
@@ -88,6 +140,11 @@ const TeamMatching = () => {
           <p className="text-gray-400">{profile.year_of_study || 'Student'}</p>
           {profile.college && (
             <div className="text-sm text-gray-500 mt-1">{profile.college}</div>
+          )}
+          {profile.looking_for && (
+            <div className="text-sm text-blue-400 mt-1">
+              {getLookingForLabel(profile.looking_for)}
+            </div>
           )}
         </div>
         <div className="text-right">
@@ -175,13 +232,32 @@ const TeamMatching = () => {
                 </select>
               </div>
 
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3">Gender</h3>
+                <select 
+                  className="input-hackora w-full"
+                  value={selectedGender}
+                  onChange={(e) => setSelectedGender(e.target.value)}
+                >
+                  <option>Any Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+              </div>
+
               <div>
-                <h3 className="text-lg font-semibold mb-3">Experience Level</h3>
-                <select className="input-hackora w-full">
-                  <option>Any Level</option>
-                  <option>Beginner</option>
-                  <option>Intermediate</option>
-                  <option>Advanced</option>
+                <h3 className="text-lg font-semibold mb-3">Looking For</h3>
+                <select 
+                  className="input-hackora w-full"
+                  value={selectedLookingFor}
+                  onChange={(e) => setSelectedLookingFor(e.target.value)}
+                >
+                  <option value="Any">Any</option>
+                  <option value="team_members">Team Members</option>
+                  <option value="teams">Teams to Join</option>
+                  <option value="both">Both</option>
                 </select>
               </div>
             </div>
@@ -200,6 +276,30 @@ const TeamMatching = () => {
             </motion.div>
 
             {/* AI Suggested Section */}
+            {!isProfileComplete && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="mb-8"
+              >
+                <div className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border border-yellow-500/30 rounded-2xl p-6">
+                  <h2 className="text-2xl font-bold mb-2">⚠️ Complete Your Profile</h2>
+                  <p className="text-gray-400 mb-4">
+                    To find the perfect teammates, please complete your profile first. Add your college, year, gender, and what you're looking for!
+                  </p>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => window.location.href = '/profile'}
+                    className="btn-primary"
+                  >
+                    Complete Profile
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+
             {loading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>

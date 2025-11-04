@@ -74,11 +74,13 @@ export type Database = {
           created_at: string | null
           email: string | null
           full_name: string | null
+          gender: string | null
           github_url: string | null
           id: string
           interests: string[] | null
           kaggle_url: string | null
           linkedin_url: string | null
+          looking_for: string | null
           portfolio_url: string | null
           projects: Json | null
           skills: string[] | null
@@ -92,11 +94,13 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           full_name?: string | null
+          gender?: string | null
           github_url?: string | null
           id: string
           interests?: string[] | null
           kaggle_url?: string | null
           linkedin_url?: string | null
+          looking_for?: string | null
           portfolio_url?: string | null
           projects?: Json | null
           skills?: string[] | null
@@ -110,11 +114,13 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           full_name?: string | null
+          gender?: string | null
           github_url?: string | null
           id?: string
           interests?: string[] | null
           kaggle_url?: string | null
           linkedin_url?: string | null
+          looking_for?: string | null
           portfolio_url?: string | null
           projects?: Json | null
           skills?: string[] | null
